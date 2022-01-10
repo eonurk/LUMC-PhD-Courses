@@ -53,4 +53,14 @@ ggsurvplot(
     xlab = "Hours", 
     ylab = "Overall survival probability", risk.table = T, conf.int = T)
 ```
+```{r}
+summary(fit.KM2)
+```
+
+```{r}
+ggsurvplot(
+    fit = fit.KM2, 
+    xlab = "Hours", 
+    ylab = "Hazard ratio", risk.table = T, conf.int = T, fun = "cumhaz")
+```
 
