@@ -1,0 +1,129 @@
+---
+title: "Survival Analyses Exercises - Day 5"
+author: Emin Onur Karakaslar
+output: md_document
+---
+
+
+```{r load libs}
+library(dplyr)
+library(haven)
+library(survival)
+library(survminer)
+```
+
+#### 1.
+
+```{r}
+df <- read_sav("Day 5_cod.sav")
+```
+
+
+cause of death:
+```{r}
+table(df$status)
+```
+
+age characteristics:
+```{r}
+table(df$age)
+```
+#### 2.
+```{r}
+library(cmprsk)
+
+ci_fit <- 
+  cuminc(
+    ftime = df$survmon, 
+    fstatus = df$status, 
+    cencode = 0
+    )
+
+ggcompetingrisks(ci_fit, xlab = "Months", conf.int = T)
+```
+
+
+```{r}
+
+ci_fit.age <- 
+  cuminc(
+    ftime = df$survmon, 
+    fstatus = df$status, 
+    group = df$age,
+    cencode = 0
+    )
+
+ggcompetingrisks(ci_fit.age, xlab = "Months", conf.int = T, multiple_panels = T)
+```
+```{r}
+ci_fit.age[["Tests"]]
+```
+
+```{r}
+ci_fit.age$`3 1`$time
+```
+
+
+
+#### 4.
+```{r}
+fit.cox <- coxph(Surv(survmon, ifelse(status == 1, 1, 0)) ~ as.factor(age), data = df)
+
+fit.cox
+```
+
+Age does not have a significant effect on death because of relapse.
+
+
+#### 5.
+```{r}
+summary(survfit(Surv(survmon, ifelse(status == 1, 1, 0)) ~ 1, data = df[df$age == 3,])) # 0.913
+summary(survfit(Surv(survmon, ifelse(status == 2, 1, 0)) ~ 1, data = df[df$age == 3,])) # 0.849
+summary(survfit(Surv(survmon, ifelse(status == 3, 1, 0)) ~ 1, data = df[df$age == 3,])) # 0.919
+summary(survfit(Surv(survmon, ifelse(status == 4, 1, 0)) ~ 1, data = df[df$age == 3,])) # 0.840
+
+# probability of dying at 5-years for group 3
+(1 - 0.913) + (1 - 0.849) + (1 - 0.919) + (1 - 0.840)
+```
+
+#### 6. 
+
+### Poisson regression
+
+#### 7.
+```{r}
+df2 <- read_sav("Day 5_pbc.sav")
+
+fit.KM <- survfit(Surv(years, status) ~ 1, data = df2)
+
+ggsurvplot(fit.KM, pval = T, conf.int = T, risk.table = T, xlab = "Years")
+```
+
+
+
+```{r}
+ggsurvplot(fit.KM, fun = "cumhaz", pval = T, conf.int = T, risk.table = T, xlab = "Years")
+```
+
+Survival probabilities:
+```{r}
+summary(fit.KM)
+
+0.809 # 3 years
+0.711 # 5 years
+0.439 # 10 years
+```
+
+```{r}
+# slope
+(0.573 - 1) / 8
+```
+
+```{r}
+fit.KM
+
+max(df2$years)
+
+125 / 12.5
+```
+
