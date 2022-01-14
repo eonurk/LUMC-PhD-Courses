@@ -1,0 +1,78 @@
+---
+title: "Survival Analyses Exercises - Day 2"
+author: Emin Onur Karakaslar
+output: md_document
+---
+
+
+```{r load libs}
+library(haven)
+library(survival)
+library(survminer)
+```
+
+```{r}
+df <- read_sav("Day 2_Logrank_example.sav")
+
+head(df)
+```
+
+```{r}
+fit.KM <- survfit(Surv(time, status) ~ group, data = df)
+
+summary(fit.KM)
+```
+
+```{r}
+survdiff(Surv(time, status) ~ group, data = df)
+```
+
+
+
+```{r}
+ggsurvplot(fit.KM, conf.int = T, pval = T)
+```
+
+### Minimum, maximum and median follow-up
+```{r}
+df2 <- read_sav("Day 2_drug6mp.sav")
+```
+
+
+finding the median follow-up
+```{r median follow-up}
+df2$followup <- 1 - df2$Status
+
+fit.KM2 <- survfit(Surv(timerelmp, followup) ~ 1, data = df2)
+fit.KM2
+```
+
+
+```{r}
+ggsurvplot(fit = fit.KM2, surv.median.line = "hv", ylab ="Percent followed")
+```
+
+
+and for survival analyses with two groups:
+```{r}
+fit.KM3 <- survfit(Surv(timerelmp, Status) ~ groups, data = df2)
+fit.KM3
+```
+
+```{r}
+summary(fit.KM3)
+```
+
+```{r}
+ggsurvplot(fit = fit.KM3, pval = T, conf.int = T)
+```
+### Life table method
+
+## Alternative observation schemes
+
+### Death times of elderly residents of a retirement community
+
+1. You need to be at a certain age to be retired, and be alive at the given interval therefore the data is left-truncated. 
+
+2. We don't know how many people joined to the study during the 5 year period, therefore we can't infer the actual death rate.
+

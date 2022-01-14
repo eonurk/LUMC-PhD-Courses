@@ -1,0 +1,122 @@
+---
+title: "Survival Analyses Exercises - Day 3"
+author: Emin Onur Karakaslar
+output: md_document
+---
+
+
+### Larynx carcinoma patients
+
+a. Yes, until approximately the second year probability of survival is higher for the patients with the secondary tumor, then crosses the other line.  This is about the starting point of the study as it is probably taken from the detection of the first tumor.
+
+b. Either the starting point should be changed to the second year or the time of occurrence of the second tumor should be accounted in the model.
+
+### Ovarian cancer data
+
+```{r warning=F, message=F}
+# install.packages("haven")
+# install.packages("survival")
+
+library(haven)
+library(survival)
+library(survminer)
+```
+
+
+#### a.
+```{r}
+df <- read_sav("Day 3_OVA.SAV")
+
+# KM plot by FIGO
+fit.KM <- survfit(Surv(time, death) ~ figo, data = df)
+
+fit.KM
+```
+
+
+```{r}
+survdiff(Surv(time, death) ~ figo, data = df)
+```
+```{r}
+ggsurvplot(fit.KM, pval = T, conf.int = T, risk.table = T)
+```
+
+```{r cum hazard}
+ggsurvplot(fit.KM, pval = T, conf.int = T, fun = "cumhaz")
+```
+
+#### b. 
+```{r}
+fit.cox <- coxph(Surv(time, death) ~ as.numeric(figo), data = df)
+fit.cox
+```
+
+
+```{r}
+summary(fit.cox)
+```
+lower CI
+```{r}
+exp(0.7063 - 1.96 * 0.1322)
+```
+upper CI
+```{r}
+exp(0.7063 + 1.96 * 0.1322)
+```
+
+
+#### d.
+```{r}
+fit.cox2 <- coxph(Surv(time, death) ~ as.factor(figo), data = df)
+fit.cox2
+```
+
+
+#### e.
+#### f.
+```{r}
+fit.cox3 <- coxph(Surv(time, death) ~ as.factor(karn), data = df)
+fit.cox3
+```
+
+```{r}
+summary(fit.cox3)
+```
+
+#### g.
+```{r}
+fit.cox5 <- coxph(Surv(time, death) ~ figo + karn + diam, data = df)
+fit.cox5
+```
+```{r}
+summary(fit.cox5)
+```
+
+```{r interraction terms}
+fit.cox6 <- coxph(Surv(time, death) ~ figo * karn * diam , data = df)
+
+fit.cox6
+```
+
+#### i and j 
+Take the best model:
+```{r}
+xBeta <- predict(fit.cox5, type = "expected")
+
+values <- quantile(xBeta, c(.33, .66, 1))
+values <- c(0, values)
+
+df$xbeta.group <- cut(xBeta, values, labels = c("Good", "Moderate", "Bad"))
+
+fit.KM.xbeta <- survfit(Surv(time, death) ~ xbeta.group, data = df)
+
+
+ggsurvplot(fit.KM.xbeta, pval = T, conf.int = T, risk.table = T)
+```
+#### k.
+```{r}
+predict(fit.cox5, type = c("survival"))
+```
+
+
+

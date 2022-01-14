@@ -1,0 +1,170 @@
+---
+title: "Survival Analyses Exercises - Day 4"
+author: Emin Onur Karakaslar
+output: md_document
+---
+
+
+### Fit a Cox model
+
+```{r load libs}
+library(dplyr)
+library(haven)
+library(survival)
+library(survminer)
+```
+#### 1.
+```{r}
+df <- read_sav("Day 4_pbc.sav")
+
+fit.dpca.cox <- coxph(Surv(years, status) ~ rx + bilirubin, data = df)
+
+fit.dpca.cox
+```
+
+
+
+#### 2. 
+
+```{r}
+fit.dpca.cox.histology <- coxph(Surv(years, status) ~ as.factor(histol), data = df)
+fit.dpca.cox.histology
+```
+
+
+
+
+#### 3.
+```{r}
+fit.dpca.cox.age <- coxph(Surv(years, status) ~ age, data = df)
+fit.dpca.cox.age
+```
+
+```{r}
+# lower CI
+exp(0.039995 - 0.008811 * 1.96)
+```
+```{r}
+# upper CI
+exp(0.039995 + 0.008811 * 1.96)
+```
+
+#### 4. 
+```{r}
+fit.dpca.cox.age <- coxph(Surv(years, status) ~ age, data = df)
+fit.dpca.cox.age
+```
+
+```{r}
+exp(0.039995) ^ 5
+```
+```{r}
+#lower CI
+exp(0.039995 - 1.96 * 0.008811) ^ 5
+```
+
+```{r}
+#upper CI
+exp(0.039995+ 1.96 * 0.008811) ^ 5
+```
+
+#### 5.
+```{r}
+fit.dpca.cox.bilirubin <- coxph(Surv(years, status) ~ bilirubin, data = df)
+fit.dpca.cox.bilirubin
+```
+
+```{r}
+quantile(df$bilirubin)
+```
+```{r}
+fit.dpca.cox.bilirubin2 <- coxph(Surv(years, status) ~ bilirubin + hepatom + spiders + edema, data = df)
+fit.dpca.cox.bilirubin2
+```
+
+### Interaction
+
+#### 1.
+```{r}
+fit.dpca.rxhepa <- coxph(Surv(years, status) ~ rx * hepatom, data = df)
+fit.dpca.rxhepa
+```
+
+#### 2.
+No, as p = 0.81
+
+#### 3.
+
+
+
+### Predicted survival for specific covariate patterns
+
+#### 1.
+```{r}
+fit.dpca.bilhep <- coxph(Surv(years, status) ~ bilirubin + hepatom, data = df, x = T)
+fit.dpca.bilhep
+```
+
+```{r}
+head(df[,c("hepatom","bilirubin")])
+```
+```{r}
+df.hepbil <- df %>% group_by(hepatom) %>% summarise(bilirubin = mean(bilirubin))
+```
+
+```{r}
+library(pec)
+
+plotPredictSurvProb(fit.dpca.bilhep, newdata = df.hepbil, 
+                    col = c("green", "blue"), legend = T)
+legend("bottomleft", legend=c("hepatom=0", "hepatom=1"),
+       lty=c(1,1),col=c("green", "blue"))
+```
+#### 2.
+No you can't estimate mean survival looking at these graphs as these are predictions.
+
+
+### Stratified Cox Model and test for the proportional hazard assumption
+
+#### 1.
+```{r}
+fit.KM <- survfit(Surv(years, status) ~ edema, data = df)
+
+ggsurvplot(fit.KM, conf.int = T, pval = T, risk.table = T)
+```
+```{r}
+ggsurvplot(fit.KM, conf.int = T, pval = T, risk.table = T, fun = "cumhaz")
+```
+```{r}
+fit.KM
+```
+
+
+Looking at the KM, proportional hazard assumption holds as there is no crossing point between lines.
+
+#### 2.
+```{r}
+fit.cox.edema <- coxph(Surv(years, status) ~ edema + age, data = df, x = T)
+fit.cox.edema
+```
+
+```{r}
+ggsurvplot(survfit(fit.cox.edema), data = df, palette = c("#2E9FDF"))
+```
+
+```{r}
+df_new <- with(df, data.frame(edema = c(0,1), age = rep(mean(age, na.rm = TRUE), 2)))
+
+df_new
+fit.new <- survfit(fit.cox.edema, newdata = df_new)
+ggsurvplot(fit.new, data = df_new)
+```
+This seems like a better KM plot compared to earlier version.
+
+
+
+```{r}
+fit.cox.edema.strata <- coxph(Surv(years, status) ~ strata(edema) + age, data = df, x = T)
+fit.cox.edema.strata
+```
+
