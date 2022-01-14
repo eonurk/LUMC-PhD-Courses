@@ -7,3 +7,4 @@ This is just to keep track of my own progress on the course.
 - [Day 2](/Day2/)
 - [Day 3](/Day3/)
 - [Day 4](/Day4/)
+- [Day 5](/Day5/)
