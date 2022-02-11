@@ -1,0 +1,216 @@
+---
+title: "Survival Analyses Final Assignment"
+author: Emin Onur Karakaslar
+output: html_document
+---
+
+
+```{r load libs, warning=FALSE, message=FALSE}
+library(dplyr)
+library(haven)
+library(survival)
+library(survminer)
+```
+
+
+Loading the data:
+```{r}
+df <- read_sav("GBSG2.sav")
+```
+
+
+### Q1. Reverse Kaplan-Meier median follow-up
+```{r}
+
+df$cens.reversed <- ifelse(df$cens == 1, 0, 1)
+
+fit.KM <- survfit(Surv(time, cens.reversed) ~ 1, data = df)
+fit.KM
+```
+
+The median follow-up is **1645 days**.
+
+
+```{r}
+ggsurvplot(fit.KM, 
+           conf.int = T,
+           pval = T, 
+           surv.median.line = "hv", 
+           xlab = "Recurrence free survival time (in days)")
+```
+
+Here, again we can observe that the median follow-up day is 1645 days, and it can be seen from the graph that the first ~500 days the follow-up level is very high.
+
+### Q2. Kaplan-Meier for treatment groups
+```{r}
+fit.KM2 <- survfit(Surv(time, cens) ~ horTh, data = df)
+fit.KM2
+```
+
+```{r}
+ggsurvplot(fit.KM2, 
+           conf.int = T,
+           pval = T, 
+           surv.median.line = "hv", 
+           xlab = "Recurrence free survival time (in days)")
+```
+```{r}
+fit.cox <- coxph(Surv(time, cens) ~ horTh, data = df)
+fit.cox
+```
+
+
+The treatment group (horTh=2) more likely to survive as HR is 0.6949 compared to those who did not get the treatment (horTh=1). 
+Also, log rank p-value 0.0034 shows that we need to reject the null hypothesis that the two lines are equal to each other.
+
+We can find the lower and upper 0.95 CI for HR with following:
+```{r lower 0.95 CI}
+# lower 0.95 CI
+exp(-0.3640 - 1.96 * 0.1250)
+```
+
+```{r upper 0.95 CI}
+# upper 0.95 CI
+exp(-0.3640 + 1.96 * 0.1250)
+```
+
+
+### Q3. Cox model with forward selection
+
+```{r}
+hist(df$age)
+```
+
+Let's make age a categorical variable since the effect might not be linear.
+```{r}
+# making the age a categorical variable
+df$age.categorical <- cut(df$age, c(0, 40, 60, 200), labels = c("Young", "Middle", "Old"))
+
+# fit the basic model
+fit.cox.fwd <- coxph(Surv(time, cens) ~ 1, data = df)
+
+# add the stepwise forward selection using AIC values
+fit.cox.fwd2 <- step(fit.cox.fwd,
+    scope = list(upper = ~age.categorical*menostat*tsize*tgrade*pnodes*progrec*estrec, lower = ~1),
+    direction = "forward", 
+    trace = 1)
+```
+
+`step` function tries to automatically add variables starting from the null model (~1) until the addition of the new terms does not make Akaike Information Criterion (AIC) value smaller. For instance, in first iteration it add to the model `pnodes` as it calculates it has the lowest AIC = 3528.2, whereas the null model has AIC = 3576.2. Then, it adds `progrec` in the second iteration. `tgrade`, `tsize`, and `pnodes:tsize` added  to the model at 3rd, 4th and in the 5th iteration, respectively. In the 6th iteration, adding more terms to the model does not make AIC smaller. Therefore, the final model becomes:
+
+`Surv(time, cens) ~ pnodes + progrec + tgrade + tsize + pnodes:tsize`
+
+
+```{r}
+fit.cox.fwd2
+```
+
+and all p-values for the selected variables are smaller than 0.05, therefore statistically significant. 
+Thus, we can add the `horTh` to the model. 
+
+```{r}
+fit.cox.fwd3 <- coxph(formula = Surv(time, cens) ~ pnodes + progrec + tgrade + 
+                                                   tsize + pnodes:tsize + horTh, data = df)
+fit.cox.fwd3
+```
+
+
+Yes, the treatment effect has changed compared to univariate model. Now, HR is bigger (HR=0.731) compared to univariate model (HR=0.694) which means that additional prognostic variables (tgrade, pnodes, progrec, tsize and pnodes:tsize) explains some of the difference between the two groups. Yet, still the group who had the treatment has an overall better survival compared to the control group (0.731 times more likely to die - a bit confusing but true), and the p-value is still smaller than 0.05 ($p_{horTh}=0.01277$) which means that we can still reject the null hypothesis that the two curves are equal to each other.
+
+
+### Q4. Risk score for each patient
+
+We can use the model we created (`fit.cox.fw2`) and `predict` function to use the calculate the risk score (RS) for the patients;
+```{r}
+preds <- predict(fit.cox.fwd2, newdata = df)
+
+# first six RS
+head(preds)
+```
+and create the histogram using ggplot:
+```{r}
+library(ggplot2)
+
+df$preds <- preds
+ggplot(df, aes(preds)) + geom_histogram(bins = 50) + theme_bw() + xlab("Risk Score (binned)")
+```
+
+Just for fun let's see how different tumor grade (`tgrade`) affect the predictions;
+```{r}
+library(ggridges)
+ggplot(df, aes(preds,as.factor(tgrade),  fill = as.factor(tgrade))) + 
+    geom_density_ridges(alpha = 0.5,jittered_points = TRUE, point_alpha=1,point_shape=21) + 
+    theme_bw() + labs(fill = "Tumor Grade") + xlab("Risk Score") + ylab("Tumor Grade")
+```
+
+The above density plot show that as tumor grade increases (y-axis) the risk score (x-axis) also increases.
+
+### Q5. Risk group KM
+```{r}
+qtiles <- quantile(df$preds, c(0, 0.33, 0.66, 1))
+qtiles
+```
+
+divide patients into 3-groups with respective quantiles
+```{r}
+patient.groups <- cut(df$preds, qtiles, labels = c("Low Risk", "Medium Risk", "High Risk"))
+patient.groups[1] <- "Low Risk"
+head(patient.groups)
+```
+> Note: Assigned the lowest risk scored patient to "Low Risk" groups as it was not assigned by `cut` function.
+
+```{r}
+df$patient.groups <- patient.groups
+
+fit.KM.qtile <- survfit(Surv(time, cens) ~ patient.groups, data = df)
+fit.KM.qtile
+```
+
+Median survival is 859 days for `High Risk` patients, and 1806 days for `Medium Risk` patients, whereas `Low Risk` patients do not have median survival days as the survival curve do not go below 0.5 threshold. We can also see these with a KM plot:
+
+```{r fig.width=8, fig.height=6}
+ggsurvplot(fit.KM.qtile, 
+           pval = T, 
+           conf.int = T,
+           risk.table = T,
+           surv.median.line = "hv", 
+           legend.labs = gsub("patient.groups=", "", names(fit.KM.qtile$strata)),
+           xlab = "Recurrence free survival time (in days)")
+```
+
+```{r}
+surv_pvalue(fit.KM.qtile)
+```
+
+The log-rank test `p=1.456998e-20`, which means that we can reject the null hypothesis that 3-curves are equal to each other.
+
+To calculate HR we can fit a cox model to the data:
+```{r}
+fit.cox.qtile <- coxph(Surv(time, cens) ~ patient.groups, data = df)
+fit.cox.qtile
+```
+
+
+`Medium Risk` patients are ~2.02x and `High Risk` patients are ~4.01x more likely to die compared to `Low Risk` patients. 
+For both comparisons p-values are smaller than 0.05 ($p_{Medium} = 2.02e-05$ and $p_{High} < 2e-16$), therefore statistically significant.
+
+
+```{r}
+summary(fit.cox.qtile)
+```
+
+The 0.95 CI for `Medium Risk` patients: 1.464 - 2.803
+
+The 0.95 CI for `High Risk` patients: 2.941 - 5.460
+
+Also, not looking at the p-val but only to the intervals, 
+
+we could say these parameters are statistically significant as neither of the intervals include 1.
+
+---
+
+### Session Info
+```{r}
+sessionInfo()
+```
+
