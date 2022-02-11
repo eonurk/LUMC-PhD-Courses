@@ -1,5 +1,3 @@
-setwd("Desktop/Basic Statistics Course/")
-
 library(dplyr)
 library(survival)
 library(ggplot2)
